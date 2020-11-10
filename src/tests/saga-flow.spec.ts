@@ -1,6 +1,10 @@
 import { Step } from '../step';
 import { SagaParams } from './saga-params';
 import { SagaFlow } from '../saga-flow';
+import {
+  SagaStepInvocationFailed,
+  SagaStepCompensationFailed,
+} from '../exceptions';
 
 const expectInvokeBehavior = (stepMock, sagaParams) => {
   expect(stepMock.invoke).toHaveBeenCalledTimes(1);
@@ -89,7 +93,7 @@ describe('Saga Flow', () => {
 
   test('execute with errors in compensation flow', async () => {
     const executionOrder = [];
-    const stepMock1 = new Step<SagaParams>();
+    const stepMock1 = new Step<SagaParams>('AAA');
     stepMock1.invoke = jest.fn(async () => {
       executionOrder.push(1);
     });
@@ -97,7 +101,7 @@ describe('Saga Flow', () => {
       executionOrder.push(4);
       throw new Error();
     });
-    const stepMock2 = new Step<SagaParams>();
+    const stepMock2 = new Step<SagaParams>('BBB');
     stepMock2.invoke = jest.fn(() => {
       executionOrder.push(2);
       throw new Error();
@@ -109,8 +113,12 @@ describe('Saga Flow', () => {
     const sagaParams = new SagaParams();
     const saga = new SagaFlow([stepMock1, stepMock2]);
 
-    await expect(saga.invoke(sagaParams)).rejects.toEqual(new Error());
-    await expect(saga.compensate(sagaParams)).rejects.toEqual(new Error());
+    await expect(saga.invoke(sagaParams)).rejects.toThrow(
+      SagaStepInvocationFailed,
+    );
+    await expect(saga.compensate(sagaParams)).rejects.toThrow(
+      SagaStepCompensationFailed,
+    );
     expectStepsBehavior(stepMock1, stepMock2, sagaParams);
     expect(executionOrder).toEqual([1, 2, 3, 4]);
   });
